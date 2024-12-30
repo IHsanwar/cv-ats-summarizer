@@ -3,174 +3,258 @@ import PyPDF2
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
+from datetime import datetime
 
 class CVSummarizer:
     def __init__(self):
-        # Load English language model
         self.nlp = spacy.load("en_core_web_sm")
-        
+        # Common skills dictionary for better recognition
+        self.common_skills = {
+                'languages': [
+                    'python', 'java', 'javascript', 'typescript', 'c', 'c++', 'c#', 'ruby', 
+                    'php', 'sql', 'html', 'css', 'swift', 'go', 'rust', 'perl', 'scala', 
+                    'r', 'kotlin', 'dart', 'objective-c', 'bash', 'powershell', 'lua', 'haskell', 
+                    'vba', 'matlab', 'groovy', 'elixir', 'f#', 'julia', 'sas', 'abap', 'fortran', 
+                    'ada', 'cobol', 'solidity', 'assembly', 'flutter'
+                ],
+                'frameworks': [
+                    'django', 'flask', 'fastapi', 'react', 'angular', 'vue', 'next.js', 'nuxt.js', 
+                    'svelte', 'ember.js', 'spring', 'rails', 'laravel', 'express', 'symfony', 
+                    'nestjs', 'adonisjs', 'meteor', 'struts', 'codeigniter', 'backbone.js', 'quarkus', 
+                    'gin', 'bottle', 'pyramid', 'phoenix', 'play framework', 'grails', 'yii', 
+                    'hapi.js', 'kivy'
+                ],
+                'databases': [
+                    'mysql', 'postgresql', 'mongodb', 'oracle', 'sql server', 'redis', 'sqlite', 
+                    'dynamodb', 'cassandra', 'elasticsearch', 'mariadb', 'firestore', 'arangodb', 
+                    'couchdb', 'neo4j', 'hbase', 'ibm db2', 'teradata', 'cockroachdb', 'clickhouse'
+                ],
+                'tools': [
+                    'git', 'docker', 'kubernetes', 'jenkins', 'aws', 'azure', 'gcp', 'terraform', 
+                    'ansible', 'vagrant', 'gradle', 'maven', 'circleci', 'travisci', 'helm', 'grafana', 
+                    'prometheus', 'splunk', 'sonarqube', 'logstash', 'chef', 'puppet', 'new relic', 
+                    'sentry', 'datadog', 'elastic stack', 'tableau', 'power bi'
+                ]
+}
+
     def read_pdf(self, file_path: str) -> str:
-        """
-        Read text content from a PDF file
-        """
         text = ""
         try:
             with open(file_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 for page in pdf_reader.pages:
-                    text += page.extract_text()
+                    extracted_text = page.extract_text()
+                    if extracted_text:
+                        text += extracted_text + "\n"
         except Exception as e:
             print(f"Error reading PDF: {str(e)}")
             return ""
-        return text
+        return text.strip()
 
-    def extract_contact_info(self, text: str) -> Dict[str, str]:
-        """
-        Extract contact information using regex patterns
-        """
-        contact_info = {
+    def extract_profile(self, text: str) -> Dict[str, str]:
+        profile = {
+            'name': '',
             'email': '',
             'phone': '',
-            'linkedin': ''
+            'linkedin': '',
+            'location': '',
+            'summary': ''
         }
         
-        # Email pattern
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        email_match = re.search(email_pattern, text)
-        if email_match:
-            contact_info['email'] = email_match.group()
-            
-        # Phone pattern
-        phone_pattern = r'\b(?:\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}\b'
-        phone_match = re.search(phone_pattern, text)
-        if phone_match:
-            contact_info['phone'] = phone_match.group()
-            
-        # LinkedIn pattern
-        linkedin_pattern = r'linkedin\.com/in/[\w-]+'
-        linkedin_match = re.search(linkedin_pattern, text)
-        if linkedin_match:
-            contact_info['linkedin'] = linkedin_match.group()
-            
-        return contact_info
-
-    def extract_skills(self, text: str) -> List[str]:
-        """
-        Extract skills from the text using NLP
-        """
-        doc = self.nlp(text)
-        skills = []
+        # Enhanced patterns
+        email_pattern = r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+        phone_pattern = r'(?:(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})'
+        linkedin_pattern = r'(?:linkedin\.com/in/|linkedin:\s*)([^\s/]+)'
+        location_pattern = r'(?:Address|Location):\s*([^,\n]+(?:,\s*[^,\n]+)*)'
         
-        # Common skill-related keywords
-        skill_sections = ['skills', 'technical skills', 'expertise', 'competencies','kemampuan','skill','SKILL']
+        # Extract name (usually first line of CV)
+        first_lines = text.split('\n')[:3]  # Check first 3 lines
+        for line in first_lines:
+            line = line.strip()
+            if line and not any(keyword in line.lower() for keyword in ['resume', 'cv', 'curriculum']):
+                profile['name'] = line
+                break
+        
+        # Extract other profile information
+        profile['email'] = next(iter(re.findall(email_pattern, text)), '')
+        profile['phone'] = next(iter(re.findall(phone_pattern, text)), '')
+        linkedin_match = re.search(linkedin_pattern, text, re.I)
+        profile['linkedin'] = f"linkedin.com/in/{linkedin_match.group(1)}" if linkedin_match else ''
+        
+        # Extract location
+        location_match = re.search(location_pattern, text, re.I)
+        profile['location'] = location_match.group(1) if location_match else ''
+        
+        # Extract summary/objective
+        summary_patterns = [
+            r'(?:Professional\s+Summary|Summary|Profile|Objective):\s*([^\n]+(?:\n(?!\n)[^\n]+)*)',
+            r'(?:SUMMARY OF QUALIFICATIONS|PROFESSIONAL PROFILE)[\s\n]*([^\n]+(?:\n(?!\n)[^\n]+)*)'
+        ]
+        
+        for pattern in summary_patterns:
+            summary_match = re.search(pattern, text, re.I)
+            if summary_match:
+                profile['summary'] = summary_match.group(1).strip()
+                break
+                
+        return profile
+
+    def extract_skills(self, text: str) -> Dict[str, List[str]]:
+        skills_section = {
+            'technical_skills': [],
+            'soft_skills': [],
+            'languages': [],
+            'tools': []
+        }
         
         # Find skills section
-        lines = text.lower().split('\n')
-        start_index = -1
+        skill_section_pattern = r'(?:SKILLS|TECHNICAL SKILLS|EXPERTISE).*?\n(.*?)(?:\n\n|\Z)'
+        skill_match = re.search(skill_section_pattern, text, re.I | re.DOTALL)
         
-        for i, line in enumerate(lines):
-            if any(section in line.lower() for section in skill_sections):
-                start_index = i
-                break
-                
-        if start_index != -1:
-            # Extract skills from the skills section
-            skill_text = ' '.join(lines[start_index:start_index + 10])
-            # Extract noun phrases as potential skills
-            for chunk in self.nlp(skill_text).noun_chunks:
-                if len(chunk.text.split()) <= 3:  # Limit to phrases of 3 words or less
-                    skills.append(chunk.text.strip())
+        if skill_match:
+            skill_text = skill_match.group(1)
+            
+            # Process each line in the skills section
+            for line in skill_text.split('\n'):
+                line = line.strip().lower()
+                if not line:
+                    continue
                     
-        return list(set(skills))  # Remove duplicates
+                # Categorize skills
+                if any(lang in line for lang in self.common_skills['languages']):
+                    skills_section['technical_skills'].extend(
+                        [lang for lang in self.common_skills['languages'] if lang in line]
+                    )
+                if any(tool in line for tool in self.common_skills['tools']):
+                    skills_section['tools'].extend(
+                        [tool for tool in self.common_skills['tools'] if tool in line]
+                    )
+                
+                # Extract soft skills
+                soft_skills_keywords = ['communication', 'leadership', 'teamwork', 'problem solving',
+                                     'analytical', 'organization', 'management']
+                for skill in soft_skills_keywords:
+                    if skill in line:
+                        skills_section['soft_skills'].append(skill)
+        
+        # Remove duplicates and sort
+        for category in skills_section:
+            skills_section[category] = sorted(list(set(skills_section[category])))
+            
+        return skills_section
 
     def extract_experience(self, text: str) -> List[Dict[str, str]]:
-        """
-        Extract work experience information
-        """
         experience = []
         
-        # Look for experience section
-        experience_headers = ['experience', 'work experience', 'employment history','PENGALAMAN DAN PELATIHAN']
-        lines = text.split('\n')
-        start_index = -1
+        # Find experience section
+        exp_section_pattern = r'(?:EXPERIENCE|WORK EXPERIENCE|EMPLOYMENT HISTORY).*?\n(.*?)(?:EDUCATION|SKILLS|\Z)'
+        exp_match = re.search(exp_section_pattern, text, re.I | re.DOTALL)
         
-        for i, line in enumerate(lines):
-            if any(header in line.lower() for header in experience_headers):
-                start_index = i
-                break
+        if exp_match:
+            exp_text = exp_match.group(1)
+            
+            # Split into individual positions
+            positions = re.split(r'\n\n+', exp_text.strip())
+            
+            for position in positions:
+                if not position.strip():
+                    continue
+                    
+                exp_entry = {
+                    'title': '',
+                    'company': '',
+                    'period': '',
+                    'responsibilities': []
+                }
                 
-        if start_index != -1:
-            # Process next several lines for experience entries
-            current_entry = {}
-            for line in lines[start_index + 1:start_index + 15]:  # Look at next 15 lines
-                if line.strip():
-                    # Try to identify company and position
-                    if not current_entry:
-                        current_entry['title'] = line.strip()
-                    elif 'company' not in current_entry:
-                        current_entry['company'] = line.strip()
-                    elif 'description' not in current_entry:
-                        current_entry['description'] = line.strip()
-                        experience.append(current_entry)
-                        current_entry = {}
-                        
+                lines = position.split('\n')
+                
+                # Extract title and company
+                if lines:
+                    first_line = lines[0].strip()
+                    if '|' in first_line:
+                        parts = first_line.split('|')
+                        exp_entry['title'] = parts[0].strip()
+                        exp_entry['company'] = parts[1].strip()
+                    elif ',' in first_line:
+                        parts = first_line.split(',')
+                        exp_entry['title'] = parts[0].strip()
+                        exp_entry['company'] = parts[1].strip()
+                    else:
+                        exp_entry['title'] = first_line
+                
+                # Extract period
+                date_pattern = r'(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,-]+\d{4})'
+                dates = re.findall(date_pattern, position, re.I)
+                if len(dates) >= 2:
+                    exp_entry['period'] = f"{dates[0]} - {dates[1]}"
+                elif len(dates) == 1:
+                    exp_entry['period'] = f"{dates[0]} - Present"
+                
+                # Extract responsibilities
+                for line in lines[1:]:
+                    line = line.strip()
+                    if line and not any(date in line for date in dates):
+                        if line.startswith('•') or line.startswith('-'):
+                            exp_entry['responsibilities'].append(line[1:].strip())
+                        else:
+                            exp_entry['responsibilities'].append(line)
+                
+                if exp_entry['title'] or exp_entry['company']:
+                    experience.append(exp_entry)
+        
         return experience
 
-    def summarize_cv(self, file_path: str) -> Dict:
-        """
-        Main function to summarize a CV
-        """
-        # Read the CV file
-        text = self.read_pdf(file_path)
+    def format_output(self, profile: Dict, skills: Dict, experience: List) -> str:
+        output = []
+        
+        # Format Profile Section
+        output.append("PROFILE")
+        output.append("=" * 50)
+        for key, value in profile.items():
+            if value:
+                output.append(f"{key.title()}: {value}")
+        output.append("")
+        
+        # Format Skills Section
+        output.append("SKILLS")
+        output.append("=" * 50)
+        for category, skill_list in skills.items():
+            if skill_list:
+                output.append(f"{category.replace('_', ' ').title()}:")
+                output.append("• " + "\n• ".join(skill_list))
+                output.append("")
+        
+        # Format Experience Section
+        output.append("EXPERIENCE")
+        output.append("=" * 50)
+        for exp in experience:
+            if exp.get('title') or exp.get('company'):
+                output.append(f"{exp.get('title')} | {exp.get('company')}")
+                if exp.get('period'):
+                    output.append(exp['period'])
+                if exp.get('responsibilities'):
+                    output.append("\nResponsibilities:")
+                    for resp in exp['responsibilities']:
+                        output.append(f"• {resp}")
+                output.append("")
+        
+        return "\n".join(output)
+
+    def summarize_cv(self, filepath: str) -> str:
+        text = self.read_pdf(filepath)
         if not text:
-            return {"error": "Could not read CV file"}
-            
-        # Extract information
-        contact_info = self.extract_contact_info(text)
+            return "Error: Failed to read PDF"
+        
+        profile = self.extract_profile(text)
         skills = self.extract_skills(text)
         experience = self.extract_experience(text)
         
-        # Create summary
-        summary = {
-            "contact_information": contact_info,
-            "skills": skills,
-            "experience": experience,
-            "original_length": len(text.split()),
-        }
-        
-        return summary
+        return self.format_output(profile, skills, experience)
     
-def summarizer(cv_path):
-    summarizer = CVSummarizer()
     
-    try:
-        summary = summarizer.summarize_cv(cv_path)
-        
-        # Create a summary string with the contact information, skills, and experience
-        summary_text = "\n=== CV Summary ===\n"
-        
-        summary_text += "\nContact Information:\n"
-        for key, value in summary["contact_information"].items():
-            if value:
-                summary_text += f"{key.capitalize()}: {value}\n"
-        
-        summary_text += "\nSkills:\n"
-        for skill in summary["skills"]:
-            summary_text += f"- {skill}\n"
-        
-        summary_text += "\nExperience Highlights:\n"
-        for exp in summary["experience"]:
-            summary_text += f"\nTitle: {exp.get('title', 'N/A')}\n"
-            summary_text += f"Company: {exp.get('company', 'N/A')}\n"
-            summary_text += f"Description: {exp.get('description', 'N/A')}\n"
-        
-        summary_text += f"\nOriginal CV length: {summary['original_length']} words"
-        
-        return summary_text  # Return the summary text
-    
-    except Exception as e:
-        print(f"Error processing CV: {str(e)}")
-        return "Error processing CV"
 
 if __name__ == "__main__":
-    main()
+    summarizer = CVSummarizer()
+    cv_summary = summarizer.summarize_cv("path/to/cv.pdf")
+    print(cv_summary)

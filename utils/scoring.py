@@ -1,8 +1,25 @@
-import joblib
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-model = joblib.load('models/cv_model.pkl')
-vectorizer = joblib.load('models/vectorizer.pkl')
+# Example text data
+corpus = [
+    "I love programming in Python",
+    "Machine learning with Python is fun",
+    "Natural language processing is interesting",
+    "Python is a great programming language"
+]
+
+# Initialize the vectorizer
+vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1,2), stop_words='english')
+
+# Fit and transform the text data
+X = vectorizer.fit_transform(corpus)
+
+# Now you can transform new text
+new_text = ["I enjoy programming with Python"]
+X_new = vectorizer.transform(new_text)
+
+# Check the result
+print(X_new)
 
 def score_cv(text):
     features = vectorizer.transform([text])
