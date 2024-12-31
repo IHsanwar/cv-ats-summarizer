@@ -20,13 +20,19 @@
             border: 1px solid #ddd;
         }
     </style>
-</head>
-<body>
-    <h1>Extracted Text</h1>
-    <pre>{{ text }}</pre>
-    <h1>Score: {{ score }}</h1>
-    <p>{{ ref }}</p>
-    <h2>CV Summary</h2>
-    <pre>{{ sum }}</pre>  <!-- Display the summary here -->
-</body>
-</html>
+<!-- templates/result.html -->
+<div class="results">
+    <h2>CV Analysis Results ({{ method|title }} Method)</h2>
+    
+    <div class="summary">
+        <h3>Summary</h3>
+        <pre>{{ text|safe }}</pre>
+    </div>
+    
+    <div class="score">
+        <h3>CV Score</h3>
+        {{ score }}
+    </div>
+    
+    <a href="/" class="btn btn-primary">Process Another CV</a>
+</div>

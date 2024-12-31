@@ -38,18 +38,58 @@ class CVSummarizer:
 }
 
     def read_pdf(self, file_path: str) -> str:
-        text = ""
+        """
+        Read and extract text from a PDF file with improved error handling and text processing.
+        
+        Args:
+            file_path (str): Path to the PDF file
+            
+        Returns:
+            str: Extracted text from the PDF, or error message if extraction fails
+            
+        Raises:
+            FileNotFoundError: If the PDF file doesn't exist
+            PermissionError: If there's no permission to access the file
+            PyPDF2.PdfReadError: If the PDF is encrypted or corrupted
+        """
+        if not Path(file_path).exists():
+            raise FileNotFoundError(f"PDF file not found: {file_path}")
+            
+        text_chunks = []
+        
         try:
             with open(file_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
-                for page in pdf_reader.pages:
-                    extracted_text = page.extract_text()
-                    if extracted_text:
-                        text += extracted_text + "\n"
+                
+                if pdf_reader.is_encrypted:
+                    raise PyPDF2.PdfReadError("PDF is encrypted and cannot be processed")
+                    
+                for page_num, page in enumerate(pdf_reader.pages, 1):
+                    try:
+                        chunk = page.extract_text()
+                        if chunk:
+                            # Clean up common PDF text extraction issues
+                            chunk = re.sub(r'\s+', ' ', chunk)  # Replace multiple spaces
+                            chunk = re.sub(r'([a-z])([A-Z])', r'\1 \2', chunk)  # Add space between camelCase
+                            text_chunks.append(chunk.strip())
+                        else:
+                            print(f"Warning: No text extracted from page {page_num}")
+                            
+                    except Exception as e:
+                        print(f"Warning: Failed to extract text from page {page_num}: {str(e)}")
+                        continue
+                        
+        except PermissionError:
+            raise PermissionError(f"Permission denied: Unable to access {file_path}")
+        except PyPDF2.PdfReadError as e:
+            raise PyPDF2.PdfReadError(f"Failed to read PDF: {str(e)}")
         except Exception as e:
-            print(f"Error reading PDF: {str(e)}")
-            return ""
-        return text.strip()
+            raise Exception(f"Unexpected error while reading PDF: {str(e)}")
+            
+        if not text_chunks:
+            raise ValueError("No text could be extracted from the PDF")
+            
+        return '\n'.join(text_chunks)
 
     def extract_profile(self, text: str) -> Dict[str, str]:
         profile = {
@@ -241,20 +281,49 @@ class CVSummarizer:
         
         return "\n".join(output)
 
-    def summarize_cv(self, filepath: str) -> str:
-        text = self.read_pdf(filepath)
+    def summarize_cv_regex(self, text: str) -> str:
         if not text:
-            return "Error: Failed to read PDF"
+            return "Error: No text to process"
         
+        # Extract information using existing methods
         profile = self.extract_profile(text)
         skills = self.extract_skills(text)
         experience = self.extract_experience(text)
         
-        return self.format_output(profile, skills, experience)
+        # Format output in desired pattern
+        output = []
+        
+        # Profile paragraph
+        profile_parts = []
+        if profile.get('name'):
+            profile_parts.append(profile['name'])
+        if profile.get('email'):
+            profile_parts.append(f"Email: {profile['email']}")
+        if profile.get('phone'):
+            profile_parts.append(f"Phone: {profile['phone']}")
+        if profile.get('summary'):
+            profile_parts.append(profile['summary'])
+        output.append(" | ".join(profile_parts))
+        output.append("")
+        
+        # Skills section with numbering
+        output.append("Skills:")
+        all_skills = []
+        for skill_list in skills.values():
+            all_skills.extend(skill_list)
+        for i, skill in enumerate(sorted(set(all_skills)), 1):
+            output.append(f"{i}. {skill}")
+        output.append("")
+        
+        # Experience section with numbering
+        output.append("Experience:")
+        for i, exp in enumerate(experience, 1):
+            if exp.get('title') and exp.get('company'):
+                output.append(f"{i}. {exp['title']} | {exp['company']}")
+        
+        return "\n".join(output)
     
-    
-
 if __name__ == "__main__":
-    summarizer = CVSummarizer()
+    summarizer = CVSummarizer()  # Correct instantiation
     cv_summary = summarizer.summarize_cv("path/to/cv.pdf")
     print(cv_summary)

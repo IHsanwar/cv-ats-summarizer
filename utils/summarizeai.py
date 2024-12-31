@@ -6,7 +6,7 @@ load_dotenv()
 
 openai.api_key =os.getenv('API_OPENAI_KEY')
 
-def summarize_cv(cv_text):
+def summarize_cv_gpt(cv_text):
     response = openai.ChatCompletion.create(
       model="gpt-4",
       messages=[
