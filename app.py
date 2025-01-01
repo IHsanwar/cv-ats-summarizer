@@ -1,12 +1,12 @@
 from flask import Flask, request, render_template, flash, redirect , url_for
 from utils.ocr import extract_text
-from utils.scoring import score_cv
+# from utils.scoring import score_cv
 from utils.summary import *
 from werkzeug.utils import secure_filename
 from utils.summarizeai import *
 import atexit
 
-ALLOWED_EXTENSIONS = {'pdf'}  # Set of allowed file extensions
+ALLOWED_EXTENSIONS = {'pdf'} 
 
 def allowed_file(filename):
     # Check if the filename has an extension and if that extension is in ALLOWED_EXTENSIONS
@@ -49,8 +49,7 @@ def index():
             # First extract text from PDF
             summarizer = CVSummarizer()
             extracted_text = summarizer.read_pdf(filepath)
-            print(extracted_text)
-            # Clean up file immediately after text extraction
+            
             os.remove(filepath)
             
             if not extracted_text:
@@ -62,12 +61,13 @@ def index():
             else:  # method == 'ai'
                 summary_text = summarize_cv_gpt(extracted_text)
             
-            score = score_cv(summary_text)
-            print(summary_text)
+            score = evaluate_summary(summary_text)
+            
             return render_template('result.html', 
                                 text=summary_text, 
                                 score=score, 
                                 method=method,
+                                extract_text=extracted_text,
                                 ref="Success")
                                 
         except Exception as e:
@@ -77,6 +77,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, use_reloader=False)
-
-
+    app.run(debug=True, use_reloader=False,port=7100)

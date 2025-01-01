@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo-style Pre Tag</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #f0f0f3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .pre-container {
+            background: #f0f0f3;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 6px 6px 12px #d1d1d1,
+                        -6px -6px 12px #ffffff;
+            max-width: 80%;
+            overflow: auto;
+        }
+
+        pre {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="pre-container">
+        <pre>
+def hello_world():
+    print("Hello, world!")
+    
+hello_world()
+        </pre>
+    </div>
+</body>
+</html>
